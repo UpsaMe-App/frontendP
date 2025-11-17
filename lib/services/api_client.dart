@@ -8,7 +8,8 @@ class ApiClient {
 
   // Base URL del backend - comentada temporalmente para evitar validación del servidor
   // String baseUrl = 'http://localhost:5034';
-  String baseUrl = '';
+  // Apuntamos por defecto al backend local Swagger mientras desarrollamos
+  String baseUrl = 'http://localhost:5034';
   String? _token;
 
   /// Permite configurar la base URL en tiempo de ejecución (p. ej. cuando se re-conecta al backend)

@@ -39,19 +39,47 @@ class AuthService {
   UserProfile? getUserProfile() => _userProfile;
 
   Future<void> login(String email, String password) async {
-    // Mock login - sin validación del servidor
     if (email.isEmpty || password.isEmpty) {
       throw Exception('Email y contraseña son requeridos');
     }
-    
-    // Simular un pequeño delay de red
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // Generar un token simulado
-    _accessToken = 'mock_token_${DateTime.now().millisecondsSinceEpoch}';
-    await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
-    ApiClient.instance.setToken(_accessToken);
-    isLoggedIn.value = true;
+
+    // Si no hay baseUrl configurada usar mock
+    if (ApiClient.instance.baseUrl.isEmpty) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      _accessToken = 'mock_token_${DateTime.now().millisecondsSinceEpoch}';
+      await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
+      ApiClient.instance.setToken(_accessToken);
+      isLoggedIn.value = true;
+      return;
+    }
+
+    // Llamada real al backend
+    final payload = {'email': email.trim(), 'password': password};
+    final resp = await ApiClient.instance.post('/auth/login', payload);
+    if (resp.statusCode == 200) {
+      try {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final token = data['accessToken'] as String? ?? data['token'] as String?;
+        if (token == null) throw Exception('Token no recibido');
+        _accessToken = token;
+        await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
+        ApiClient.instance.setToken(_accessToken);
+        // Obtener perfil del usuario
+        final meResp = await ApiClient.instance.get('/me');
+        if (meResp.statusCode == 200) {
+          final meJson = jsonDecode(meResp.body) as Map<String, dynamic>;
+          _userProfile = UserProfile.fromJson(meJson);
+          await _storage.write(key: _kUserProfileKey, value: jsonEncode(_userProfile!.toJson()));
+        }
+        isLoggedIn.value = true;
+        return;
+      } catch (e) {
+        throw Exception('Error parseando respuesta de login: $e');
+      }
+    }
+    // Error del servidor
+    final body = resp.body;
+    throw Exception('Error login: $resp.statusCode $body');
   }
 
   Future<void> register(Map<String, dynamic> payload) async {
@@ -70,26 +98,52 @@ class AuthService {
         throw Exception('Apellido es requerido');
       }
       
-      // Simular un pequeño delay de red
-      await Future.delayed(const Duration(milliseconds: 600));
-      
-      // Generar un token simulado
-      _accessToken = 'mock_token_${DateTime.now().millisecondsSinceEpoch}';
-      await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
-      ApiClient.instance.setToken(_accessToken);
-      
-      // Crear y almacenar perfil de usuario
-      _userProfile = UserProfile(
-        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-        firstName: payload['firstName'] as String? ?? '',
-        lastName: payload['lastName'] as String? ?? '',
-        email: payload['email'] as String? ?? '',
-        phone: payload['phone'] as String?,
-        career: payload['career'] as String?,
-        semester: payload['semester'] as int?,
-      );
-      await _storage.write(key: _kUserProfileKey, value: jsonEncode(_userProfile!.toJson()));
-      isLoggedIn.value = true;
+      // Si no hay baseUrl configurada usar mock
+      if (ApiClient.instance.baseUrl.isEmpty) {
+        await Future.delayed(const Duration(milliseconds: 600));
+        _accessToken = 'mock_token_${DateTime.now().millisecondsSinceEpoch}';
+        await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
+        ApiClient.instance.setToken(_accessToken);
+        // Crear y almacenar perfil de usuario local
+        _userProfile = UserProfile(
+          id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+          firstName: payload['firstName'] as String? ?? '',
+          lastName: payload['lastName'] as String? ?? '',
+          email: payload['email'] as String? ?? '',
+          phone: payload['phone'] as String?,
+          career: payload['career'] as String?,
+          semester: payload['semester'] as int?,
+        );
+        await _storage.write(key: _kUserProfileKey, value: jsonEncode(_userProfile!.toJson()));
+        isLoggedIn.value = true;
+        return;
+      }
+
+      // Llamada real al backend
+      final resp = await ApiClient.instance.post('/auth/register', payload);
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        try {
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          final token = data['accessToken'] as String? ?? data['token'] as String?;
+          if (token == null) throw Exception('Token no recibido');
+          _accessToken = token;
+          await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
+          ApiClient.instance.setToken(_accessToken);
+          // Obtener perfil del usuario
+          final meResp = await ApiClient.instance.get('/me');
+          if (meResp.statusCode == 200) {
+            final meJson = jsonDecode(meResp.body) as Map<String, dynamic>;
+            _userProfile = UserProfile.fromJson(meJson);
+            await _storage.write(key: _kUserProfileKey, value: jsonEncode(_userProfile!.toJson()));
+          }
+          isLoggedIn.value = true;
+          return;
+        } catch (e) {
+          throw Exception('Error parseando respuesta de register: $e');
+        }
+      }
+      final body = resp.body;
+      throw Exception('Error register: $resp.statusCode $body');
     } catch (e) {
       rethrow;
     }
