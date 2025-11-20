@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import '../models/post_models.dart';
-import '../services/subjects_service.dart';
 import '../services/posts_service.dart';
-import '../services/app_state.dart';
+import '../services/subjects_service.dart';
+import '../models/post_models.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -12,13 +11,15 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
-  final _titleCtrl = TextEditingController();
-  final _contentCtrl = TextEditingController();
-  final _capacityCtrl = TextEditingController();
-  Subject? _selectedSubject;
-  int _role = 1;
-  bool _loading = false;
+  final _postsService = PostsService.instance;
+  final _subjectsService = SubjectsService.instance;
+  final _titleController = TextEditingController();
+  final _contentController = TextEditingController();
+  
+  int _selectedRole = 2; // Por defecto: Student (necesito ayuda)
+  String? _selectedSubjectId;
   List<Subject> _subjects = [];
+  bool _isLoading = false;
   DateTime? _selectedDate;
 
   @override
@@ -28,311 +29,311 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _loadSubjects() async {
-    try {
-      final s = await SubjectsService.instance.fetchSubjects(pageSize: 200);
-      setState(() => _subjects = s);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error cargando materias: $e'), backgroundColor: Colors.red));
+    final subjects = await _subjectsService.getSubjects();
+    if (mounted) {
+      setState(() {
+        _subjects = subjects;
+      });
     }
   }
 
   Future<void> _selectDate() async {
-    final picked = await showDatePicker(
+    final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 180)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('es', 'ES'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1B5E3F),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
+
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedDate = picked;
+      });
     }
   }
 
-  Future<void> _submit() async {
-    if (_contentCtrl.text.isEmpty) {
+  Future<void> _createPost() async {
+    if (_contentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El contenido es requerido'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('El contenido no puede estar vacío')),
       );
       return;
     }
-    setState(() => _loading = true);
-    try {
-      // Si es comentario (role == 3) enviamos un payload simplificado
-      final payload = _role == 3
-          ? {
-              'title': null,
-              'content': _contentCtrl.text.trim(),
-              'subjectId': null,
-              'capacity': null,
-              'role': _role,
-            }
-          : {
-              'title': _titleCtrl.text.trim(),
-              'content': _contentCtrl.text.trim(),
-              'subjectId': _selectedSubject?.id,
-              'capacity': int.tryParse(_capacityCtrl.text),
-              'role': _role,
-            };
-      await PostsService.instance.createPost(payload);
-      if (!mounted) return;
 
-      // Si la pantalla fue abierta con Navigator (canPop), cerrarla.
-      // En el caso de tabs (no hay ruta a pop), simplemente limpiar el formulario
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      } else {
-        // Limpiar campos y mostrar confirmación
-        _titleCtrl.clear();
-        _contentCtrl.clear();
-        _capacityCtrl.clear();
-        setState(() {
-          _selectedSubject = null;
-          _selectedDate = null;
-          _role = 1;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Publicado correctamente')));
-        
-        // Navegar al Home después de 500ms (para que vea la confirmación)
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted) {
-          AppState.instance.goToHome();
-        }
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error creando post: $e'), backgroundColor: Colors.red));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    setState(() => _isLoading = true);
+
+    // Mapeo Frontend → Backend
+    // Frontend: 0=Student(Necesita), 1=Helper(Ofrece), 2=Comment
+    // Backend:  1=Helper,            2=Student,          3=Comment
+    final int backendRole;
+    switch (_selectedRole) {
+      case 0:
+        backendRole = 2; // Student/Necesito ayuda
+        break;
+      case 1:
+        backendRole = 1; // Helper/Ofrezco ayuda
+        break;
+      case 2:
+        backendRole = 3; // Comment
+        break;
+      default:
+        backendRole = 2;
+    }
+
+    debugPrint('Creating post with role: $backendRole (frontend: $_selectedRole)');
+
+    final createdPost = await _postsService.createPost(
+      content: _contentController.text.trim(),
+      title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
+      role: backendRole,
+      subjectId: _selectedSubjectId,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (createdPost != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Publicación creada exitosamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context, createdPost);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al crear la publicación'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Crear publicación')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Selecciona rol', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: _roleButton(1, 'Necesita', Icons.help_outline)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _roleButton(2, 'Ofrece', Icons.volunteer_activism)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _roleButton(3, 'Comentario', Icons.comment_outlined)),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Campos para publicar (excepto Comentario)
-              if (_role != 3) ...[
-                _buildCard(
-                  child: TextField(
-                    controller: _titleCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Título (opcional)',
-                      hintStyle: TextStyle(color: Colors.grey[400]),
-                      border: InputBorder.none,
-                      prefixIcon: const Icon(Icons.title, color: Color(0xFF1B5E3F), size: 20),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildCard(
-                  child: DropdownButtonFormField<Subject>(
-                    initialValue: _selectedSubject,
-                    items: _subjects.isEmpty
-                        ? []
-                        : _subjects.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
-                    onChanged: (v) => setState(() => _selectedSubject = v),
-                    decoration: InputDecoration(
-                      hintText: 'Selecciona una materia',
-                      hintStyle: TextStyle(color: Colors.grey[400]),
-                      border: InputBorder.none,
-                      prefixIcon: const Icon(Icons.school, color: Color(0xFF1B5E3F), size: 20),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Para rol 2 (Ofrece ayuda) mostrar capacidad y fecha
-                if (_role == 2) ...[
-                  _buildCard(
-                    child: TextField(
-                      controller: _capacityCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        hintText: 'Capacidad máxima (opcional)',
-                        hintStyle: TextStyle(color: Colors.grey[400]),
-                        border: InputBorder.none,
-                        prefixIcon: const Icon(Icons.people_outline, color: Color(0xFF1B5E3F), size: 20),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildCard(
-                    child: GestureDetector(
-                      onTap: _selectDate,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today, color: Color(0xFF1B5E3F), size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _selectedDate == null
-                                    ? 'Selecciona una fecha (Calendly)'
-                                    : 'Fecha: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                                style: TextStyle(
-                                  color: _selectedDate == null ? Colors.grey[400] : Colors.black,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward_ios, size: 16, color: Color(0xFF1B5E3F)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF8DC),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFD700), width: 1),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Color(0xFFFFB700), size: 18),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Integración de Calendly próximamente',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF8B6914)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                _buildCard(
-                  padding: const EdgeInsets.all(0),
-                  child: TextField(
-                    controller: _contentCtrl,
-                    maxLines: 6,
-                    decoration: InputDecoration(
-                      hintText: 'Escribe tu publicación aquí...',
-                      hintStyle: TextStyle(color: Colors.grey[400]),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.all(16),
-                      prefixIcon: const Padding(
-                        padding: EdgeInsets.only(top: 12),
-                        child: Icon(Icons.description_outlined, color: Color(0xFF1B5E3F), size: 20),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ] else ...[
-                // Comentario: solo campo de comentario grande
-                _buildCard(
-                  child: TextField(
-                    controller: _contentCtrl,
-                    maxLines: 6,
-                    decoration: InputDecoration(
-                      hintText: 'Escribe tu comentario aquí... (sin título)',
-                      hintStyle: TextStyle(color: Colors.grey[400]),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.all(12),
-                      prefixIcon: const Padding(
-                        padding: EdgeInsets.only(top: 12),
-                        child: Icon(Icons.chat_bubble_outline, color: Color(0xFF1B5E3F), size: 20),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Botón publicar
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B5E3F),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 2,
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                        )
-                      : const Text('Publicar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+      appBar: AppBar(
+        title: const Text('Nueva Publicación'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1B5E3F),
+        elevation: 0,
+        actions: [
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-            ],
-          ),
-        ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.check),
+              onPressed: _createPost,
+            ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildCard({
-    required Widget child,
-    EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
-      padding: padding,
-      child: child,
-    );
-  }
-
-  Widget _roleButton(int value, String label, IconData icon) {
-    final isSelected = _role == value;
-    return GestureDetector(
-      onTap: () => setState(() => _role = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Color(0xFF1B5E3F) : Color(0xFFF0F9F6),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? Color(0xFF1B5E3F) : Color(0xFFD0E8E0),
-            width: 2,
-          ),
-        ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: isSelected ? Colors.white : Color(0xFF1B5E3F), size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : Color(0xFF1B5E3F),
+            // Selector de rol
+            const Text(
+              'Tipo de publicación',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildRoleButton(0, '🆘', 'Necesito\nayuda', Colors.red)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildRoleButton(1, '🤝', 'Ofrezco\nayuda', Colors.green)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildRoleButton(2, '💬', 'Comentario', Colors.blue)),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Selector de materia
+            DropdownButtonFormField<String>(
+              value: _selectedSubjectId,
+              decoration: InputDecoration(
+                labelText: 'Materia',
+                prefixIcon: const Icon(Icons.book),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              items: _subjects.map((subject) {
+                return DropdownMenuItem<String>(
+                  value: subject.id,
+                  child: Text(subject.name),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() => _selectedSubjectId = value);
+              },
+              hint: const Text('Selecciona una materia'),
+            ),
+            const SizedBox(height: 16),
+
+            // Título
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                labelText: 'Título (opcional)',
+                prefixIcon: const Icon(Icons.title),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              maxLines: 1,
+            ),
+            const SizedBox(height: 16),
+
+            // Contenido
+            TextField(
+              controller: _contentController,
+              decoration: InputDecoration(
+                labelText: 'Contenido',
+                prefixIcon: const Icon(Icons.description),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+                alignLabelWithHint: true,
+              ),
+              maxLines: 8,
+            ),
+            const SizedBox(height: 16),
+
+            // Selector de fecha (placeholder para Calendly)
+            InkWell(
+              onTap: _selectDate,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.grey[50],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Color(0xFF1B5E3F)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _selectedDate != null
+                            ? 'Fecha: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                            : 'Seleccionar fecha (opcional)',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: _selectedDate != null ? Colors.black : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                    if (_selectedDate != null)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          setState(() => _selectedDate = null);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Banner informativo de Calendly
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F8F3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF1B5E3F).withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Color(0xFF1B5E3F), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'La integración con Calendly estará disponible próximamente',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildRoleButton(int role, String emoji, String label, Color color) {
+    final isSelected = _selectedRole == role;
+    return InkWell(
+      onTap: () => setState(() => _selectedRole = role),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? color : Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
   }
 }

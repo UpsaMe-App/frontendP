@@ -1,108 +1,187 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
-
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import '../models/auth_models.dart';
 import 'api_client.dart';
-import '../models/user_model.dart';
 
 class AuthService {
   AuthService._private();
-
   static final AuthService instance = AuthService._private();
+  factory AuthService() => instance;
 
-  final ValueNotifier<bool> isLoggedIn = ValueNotifier<bool>(false);
-  final _storage = const FlutterSecureStorage();
+  final _apiClient = ApiClient.instance;
+  AuthUser? _currentUser;
   String? _accessToken;
-  UserProfile? _userProfile;
+  String? _refreshToken;
 
-  static const _kAccessTokenKey = 'access_token';
-  static const _kUserProfileKey = 'user_profile';
+  AuthUser? get currentUser => _currentUser;
+  bool get isLoggedIn => _currentUser != null && _accessToken != null;
 
-  Future<void> init() async {
-    final token = await _storage.read(key: _kAccessTokenKey);
-    if (token != null) {
-      _accessToken = token;
-      ApiClient.instance.setToken(token);
-      isLoggedIn.value = true;
-    }
-    // Cargar perfil del usuario si existe
-    final profileJson = await _storage.read(key: _kUserProfileKey);
-    if (profileJson != null) {
-      try {
-        _userProfile = UserProfile.fromJson(jsonDecode(profileJson) as Map<String, dynamic>);
-      } catch (e) {
-        _userProfile = null;
-      }
-    }
-  }
-
-  UserProfile? getUserProfile() => _userProfile;
-
-  Future<void> login(String email, String password) async {
-    // Mock login - sin validación del servidor
-    if (email.isEmpty || password.isEmpty) {
-      throw Exception('Email y contraseña son requeridos');
-    }
-    
-    // Simular un pequeño delay de red
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // Generar un token simulado
-    _accessToken = 'mock_token_${DateTime.now().millisecondsSinceEpoch}';
-    await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
-    ApiClient.instance.setToken(_accessToken);
-    isLoggedIn.value = true;
-  }
-
-  Future<void> register(Map<String, dynamic> payload) async {
+  Future<bool> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    String? careerId,
+    int? semester,
+  }) async {
     try {
-      // Validate required fields
-      if ((payload['email'] as String?)?.isEmpty ?? true) {
-        throw Exception('Email es requerido');
-      }
-      if ((payload['password'] as String?)?.isEmpty ?? true) {
-        throw Exception('Contraseña es requerida');
-      }
-      if ((payload['firstName'] as String?)?.isEmpty ?? true) {
-        throw Exception('Nombre es requerido');
-      }
-      if ((payload['lastName'] as String?)?.isEmpty ?? true) {
-        throw Exception('Apellido es requerido');
+      final response = await _apiClient.post('/auth/register', {
+        'email': email,
+        'password': password,
+        'firstName': firstName,
+        'lastName': lastName,
+        if (careerId != null) 'careerId': careerId,
+        if (semester != null) 'semester': semester,
+      });
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Guardar tokens
+        _accessToken = data['accessToken'] as String?;
+        _refreshToken = data['refreshToken'] as String?;
+        
+        if (_accessToken != null) {
+          _apiClient.setToken(_accessToken);
+          
+          // Obtener datos del usuario
+          await _fetchCurrentUser();
+          
+          // Programar refresh automático en 55 minutos (antes de que expire)
+          _scheduleTokenRefresh();
+          
+          return true;
+        }
       }
       
-      // Simular un pequeño delay de red
-      await Future.delayed(const Duration(milliseconds: 600));
-      
-      // Generar un token simulado
-      _accessToken = 'mock_token_${DateTime.now().millisecondsSinceEpoch}';
-      await _storage.write(key: _kAccessTokenKey, value: _accessToken!);
-      ApiClient.instance.setToken(_accessToken);
-      
-      // Crear y almacenar perfil de usuario
-      _userProfile = UserProfile(
-        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-        firstName: payload['firstName'] as String? ?? '',
-        lastName: payload['lastName'] as String? ?? '',
-        email: payload['email'] as String? ?? '',
-        phone: payload['phone'] as String?,
-        career: payload['career'] as String?,
-        semester: payload['semester'] as int?,
-      );
-      await _storage.write(key: _kUserProfileKey, value: jsonEncode(_userProfile!.toJson()));
-      isLoggedIn.value = true;
+      debugPrint('Register failed: ${response.statusCode} - ${response.body}');
+      return false;
     } catch (e) {
-      rethrow;
+      debugPrint('Register error: $e');
+      return false;
     }
   }
 
-  Future<void> logout() async {
-    _accessToken = null;
-    _userProfile = null;
-    ApiClient.instance.setToken(null);
-    await _storage.delete(key: _kAccessTokenKey);
-    await _storage.delete(key: _kUserProfileKey);
-    isLoggedIn.value = false;
+  Future<bool> login(String email, String password) async {
+    try {
+      final response = await _apiClient.post('/auth/login', {
+        'email': email,
+        'password': password,
+      });
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Guardar tokens
+        _accessToken = data['accessToken'] as String?;
+        _refreshToken = data['refreshToken'] as String?;
+        
+        if (_accessToken != null) {
+          _apiClient.setToken(_accessToken);
+          
+          // Obtener datos del usuario
+          await _fetchCurrentUser();
+          
+          // Programar refresh automático en 55 minutos
+          _scheduleTokenRefresh();
+          
+          return true;
+        }
+      }
+      
+      debugPrint('Login failed: ${response.statusCode} - ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Login error: $e');
+      return false;
+    }
   }
 
-  String? get token => _accessToken;
+  Future<void> _fetchCurrentUser() async {
+    try {
+      final response = await _apiClient.get('/users/me');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final fullName = data['fullName'] as String? ?? '';
+        final nameParts = fullName.split(' ');
+
+        _currentUser = AuthUser(
+          id: data['id'],
+          email: data['email'],
+          firstName: nameParts.isNotEmpty ? nameParts[0] : '',
+          lastName: nameParts.length > 1 ? nameParts.skip(1).join(' ') : '',
+          careerId: data['careerId'],
+          career: data['career'],
+          semester: data['semester'],
+          profilePhotoUrl: data['profilePhotoUrl'],
+        );
+      }
+    } catch (e) {
+      debugPrint('Fetch user error: $e');
+    }
+  }
+
+  Future<bool> refreshAccessToken() async {
+    if (_refreshToken == null) {
+      debugPrint('No refresh token available');
+      return false;
+    }
+
+    try {
+      final response = await _apiClient.post('/auth/refresh', {
+        'refreshToken': _refreshToken,
+      });
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Actualizar tokens
+        _accessToken = data['accessToken'] as String?;
+        _refreshToken = data['refreshToken'] as String?;
+        
+        if (_accessToken != null) {
+          _apiClient.setToken(_accessToken);
+          
+          // Programar siguiente refresh
+          _scheduleTokenRefresh();
+          
+          debugPrint('Token refreshed successfully');
+          return true;
+        }
+      }
+      
+      debugPrint('Refresh failed: ${response.statusCode} - ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Refresh token error: $e');
+      return false;
+    }
+  }
+
+  // Timer para refresh automático
+  Timer? _refreshTimer;
+
+  void _scheduleTokenRefresh() {
+    // Cancelar timer anterior si existe
+    _refreshTimer?.cancel();
+    
+    // Programar refresh en 55 minutos (5 min antes de expirar)
+    _refreshTimer = Timer(const Duration(minutes: 55), () async {
+      debugPrint('Auto-refreshing token...');
+      final success = await refreshAccessToken();
+      if (!success) {
+        debugPrint('Auto-refresh failed, logging out');
+        logout();
+      }
+    });
+  }
+
+  void logout() {
+    _currentUser = null;
+    _accessToken = null;
+    _refreshToken = null;
+    _refreshTimer?.cancel();
+    _apiClient.setToken(null);
+  }
 }

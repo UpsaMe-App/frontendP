@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'services/auth_service.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
 import 'screens/main_tabs.dart';
 import 'theme.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await AuthService.instance.init();
+void main() {
   runApp(const MyApp());
 }
 
@@ -15,15 +14,24 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AuthService.instance.isLoggedIn,
-      builder: (context, loggedIn, _) {
-        return MaterialApp(
-          title: 'UpsaMe',
-          theme: buildAppTheme(),
-          debugShowCheckedModeBanner: false,
-          home: loggedIn ? const MainTabs() : const LoginScreen(),
-        );
+    return MaterialApp(
+      title: 'UpsaMe',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'ES'),
+        Locale('en', 'US'),
+      ],
+      initialRoute: '/login',
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/home': (context) => const MainTabs(),
       },
     );
   }

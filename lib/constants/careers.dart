@@ -24,3 +24,28 @@ const Map<String, String> careersMap = {
 
 List<String> get careersList => careersMap.keys.toList();
 List<String> get careerNames => careersMap.values.toList();
+
+class UpsaCareers {
+  static const List<String> allCareers = [
+    'Ingeniería Civil',
+    'Ingeniería Industrial',
+    'Ingeniería en Sistemas',
+    'Ingeniería Electrónica',
+    'Ingeniería Mecánica',
+    'Arquitectura',
+    'Administración de Empresas',
+    'Contabilidad',
+    'Derecho',
+    'Psicología',
+    'Enfermería',
+    'Medicina',
+    'Biotecnología',
+    'Agronomía',
+    'Comunicación Social',
+    'Marketing',
+    'Turismo',
+    'Gastronomía',
+    'Educación',
+    'Lenguas Extranjeras',
+  ];
+}

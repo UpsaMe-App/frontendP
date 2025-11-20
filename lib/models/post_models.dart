@@ -6,12 +6,24 @@ class User {
 
   User({required this.id, required this.firstName, required this.lastName, this.profilePhotoUrl});
 
-  factory User.fromJson(Map<String, dynamic> j) => User(
-    id: j['id'] as String,
-    firstName: j['firstName'] as String? ?? '',
-    lastName: j['lastName'] as String? ?? '',
-    profilePhotoUrl: j['profilePhotoUrl'] as String?,
-  );
+  factory User.fromJson(Map<String, dynamic> j) {
+    final fullName = j['fullName'] as String?;
+    final nameParts = fullName?.split(' ') ?? [];
+    
+    return User(
+      id: j['id'] as String,
+      firstName: j['firstName'] as String? ?? (nameParts.isNotEmpty ? nameParts[0] : ''),
+      lastName: j['lastName'] as String? ?? (nameParts.length > 1 ? nameParts.skip(1).join(' ') : ''),
+      profilePhotoUrl: j['profilePhotoUrl'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'firstName': firstName,
+        'lastName': lastName,
+        'profilePhotoUrl': profilePhotoUrl,
+      };
 }
 
 class Subject {
@@ -26,6 +38,8 @@ class Subject {
     name: j['name'] as String? ?? '',
     code: j['code'] as String?,
   );
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'code': code};
 }
 
 class PostReply {
@@ -42,6 +56,13 @@ class PostReply {
     createdAtUtc: j['createdAtUtc'] as String?,
     user: j['user'] != null ? User.fromJson(j['user'] as Map<String, dynamic>) : null,
   );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'content': content,
+        'createdAtUtc': createdAtUtc,
+        'user': user?.toJson(),
+      };
 }
 
 class Post {
@@ -68,4 +89,15 @@ class Post {
     ? (j['replies'] as List<dynamic>).map((e) => PostReply.fromJson(e as Map<String, dynamic>)).toList()
     : null,
   );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'content': content,
+        'title': title,
+        'role': role,
+        'createdAtUtc': createdAtUtc,
+        'user': user?.toJson(),
+        'subject': subject?.toJson(),
+        'replies': replies?.map((r) => r.toJson()).toList(),
+      };
 }

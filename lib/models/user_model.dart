@@ -6,6 +6,8 @@ class UserProfile {
   final String? phone;
   final String? career;
   final int? semester;
+  final String? profilePhotoUrl;
+  final String? avatarId;
 
   UserProfile({
     required this.id,
@@ -15,6 +17,8 @@ class UserProfile {
     this.phone,
     this.career,
     this.semester,
+    this.profilePhotoUrl,
+    this.avatarId,
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
@@ -25,6 +29,8 @@ class UserProfile {
     phone: json['phone'] as String?,
     career: json['career'] as String?,
     semester: json['semester'] as int?,
+    profilePhotoUrl: json['profilePhotoUrl'] as String?,
+    avatarId: json['avatarId'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -35,5 +41,31 @@ class UserProfile {
     'phone': phone,
     'career': career,
     'semester': semester,
+    'profilePhotoUrl': profilePhotoUrl,
+    'avatarId': avatarId,
   };
+
+  UserProfile copyWith({
+    String? id,
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? phone,
+    String? career,
+    int? semester,
+    String? profilePhotoUrl,
+    String? avatarId,
+  }) {
+    return UserProfile(
+      id: id ?? this.id,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      career: career ?? this.career,
+      semester: semester ?? this.semester,
+      profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
+      avatarId: avatarId ?? this.avatarId,
+    );
+  }
 }

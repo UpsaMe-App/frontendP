@@ -1,20 +1,48 @@
 import 'dart:convert';
-
-import '../services/api_client.dart';
+import 'package:flutter/foundation.dart';
 import '../models/post_models.dart';
+import 'api_client.dart';
 
 class SubjectsService {
   SubjectsService._private();
   static final SubjectsService instance = SubjectsService._private();
+  factory SubjectsService() => instance;
 
-  Future<List<Subject>> fetchSubjects({String? careerId, int page = 1, int pageSize = 50}) async {
-    final query = <String, String>{'page': page.toString(), 'pageSize': pageSize.toString()};
-    if (careerId != null) query['careerId'] = careerId;
-    final resp = await ApiClient.instance.get('/directory/subjects', query);
-    if (resp.statusCode == 200) {
-      final data = jsonDecode(resp.body) as List<dynamic>;
-      return data.map((e) => Subject.fromJson(e as Map<String, dynamic>)).toList();
+  final _apiClient = ApiClient.instance;
+
+  Future<List<Subject>> getSubjects({String? careerId, int page = 1, int pageSize = 50}) async {
+    try {
+      final queryParams = {
+        if (careerId != null) 'careerId': careerId,
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
+
+      final response = await _apiClient.get('/directory/subjects', queryParams);
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Subject.fromJson(json as Map<String, dynamic>)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Get subjects error: $e');
+      return [];
     }
-    throw Exception('Error cargando subjects: ${resp.statusCode}');
+  }
+
+  Future<List<Subject>> searchSubjects(String query) async {
+    try {
+      final response = await _apiClient.get('/directory/subjects/search', {'q': query});
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Subject.fromJson(json as Map<String, dynamic>)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Search subjects error: $e');
+      return [];
+    }
   }
 }

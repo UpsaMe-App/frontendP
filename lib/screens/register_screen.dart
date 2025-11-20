@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../constants/careers.dart';
+import '../services/directory_service.dart';
 import 'main_tabs.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -11,197 +11,345 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _authService = AuthService.instance;
+  final _directoryService = DirectoryService.instance;
   final _formKey = GlobalKey<FormState>();
-  final _firstName = TextEditingController();
-  final _lastName = TextEditingController();
-  final _email = TextEditingController();
-  final _password = TextEditingController();
-  final _phone = TextEditingController();
-  final _semester = TextEditingController();
-  String? _selectedCareer;
-  bool _loading = false;
+  
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _semesterController = TextEditingController();
+  
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+  String? _selectedFacultyId;
+  String? _selectedCareerId;
+  List<Map<String, dynamic>> _faculties = [];
+  List<Map<String, dynamic>> _careers = [];
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _loading = true);
-    try {
-      await AuthService.instance.register({
-        'firstName': _firstName.text.trim(),
-        'lastName': _lastName.text.trim(),
-        'email': _email.text.trim(),
-        'password': _password.text,
-        'phone': _phone.text.trim(),
-        'semester': int.tryParse(_semester.text),
-        'career': _selectedCareer,
+  @override
+  void initState() {
+    super.initState();
+    _loadFaculties();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    _semesterController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFaculties() async {
+    final faculties = await _directoryService.getFacultiesMap();
+    if (mounted) {
+      setState(() {
+        _faculties = faculties;
       });
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainTabs()));
-    } catch (e) {
-      final message = (e is Exception) ? e.toString().replaceFirst('Exception: ', '') : e.toString();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadCareers(String facultyId) async {
+    final careers = await _directoryService.getCareersMap(facultyId);
+    if (mounted) {
+      setState(() {
+        _careers = careers;
+        _selectedCareerId = null;
+      });
+    }
+  }
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final success = await _authService.register(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      careerId: _selectedCareerId,
+      semester: _semesterController.text.isNotEmpty 
+          ? int.tryParse(_semesterController.text) 
+          : null,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (success && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const MainTabs()),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al registrar. Verifica tus datos.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Color(0xFF1B5E3F)),
-      ),
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFF0F9F6), Color(0xFFE8F5F1)],
+            colors: [Color(0xFF1B5E3F), Color(0xFF2D8659)],
           ),
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 650),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
               child: Form(
                 key: _formKey,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 24),
+                    // Logo
                     Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF1B5E3F),
+                      padding: const EdgeInsets.all(20),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.person_add, size: 48, color: Colors.white),
+                      child: const Icon(
+                        Icons.school,
+                        size: 60,
+                        color: Color(0xFF1B5E3F),
+                      ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     const Text(
                       'Crear Cuenta',
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1B5E3F)),
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'Únete a la comunidad UpsaMe',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    const Text(
+                      'Únete a UpsaMe',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white70,
+                      ),
                     ),
-                    const SizedBox(height: 32),
-                    // Nombre y Apellido
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _firstName,
-                            label: 'Nombre',
-                            icon: Icons.person_outline,
-                            validator: (v) => (v ?? '').isEmpty ? 'Requerido' : null,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _lastName,
-                            label: 'Apellido',
-                            icon: Icons.person_outline,
-                            validator: (v) => (v ?? '').isEmpty ? 'Requerido' : null,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 40),
+
+                    // Nombre
+                    _buildTextField(
+                      controller: _firstNameController,
+                      label: 'Nombre',
+                      icon: Icons.person,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El nombre es requerido';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
+
+                    // Apellido
+                    _buildTextField(
+                      controller: _lastNameController,
+                      label: 'Apellido',
+                      icon: Icons.person_outline,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El apellido es requerido';
+                        }
+                        return null;
+                      },
+                    );
+                    const SizedBox(height: 16),
+
                     // Email
                     _buildTextField(
-                      controller: _email,
+                      controller: _emailController,
                       label: 'Email',
-                      icon: Icons.email_outlined,
+                      icon: Icons.email,
                       keyboardType: TextInputType.emailAddress,
-                      validator: (v) => (v ?? '').isEmpty ? 'Email requerido' : null,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El email es requerido';
+                        }
+                        if (!value.contains('@')) {
+                          return 'Ingresa un email válido';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
+
                     // Contraseña
                     _buildTextField(
-                      controller: _password,
+                      controller: _passwordController,
                       label: 'Contraseña',
-                      icon: Icons.lock_outline,
-                      obscureText: true,
-                      validator: (v) => (v ?? '').length < 6 ? 'Mínimo 6 caracteres' : null,
+                      icon: Icons.lock,
+                      obscureText: _obscurePassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'La contraseña es requerida';
+                        }
+                        if (value.length < 6) {
+                          return 'La contraseña debe tener al menos 6 caracteres';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
-                    // Teléfono y Semestre
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _phone,
-                            label: 'Teléfono',
-                            icon: Icons.phone_outlined,
-                            keyboardType: TextInputType.phone,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 120,
-                          child: _buildTextField(
-                            controller: _semester,
-                            label: 'Semestre',
-                            icon: Icons.school_outlined,
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
+
+                    // Teléfono
+                    _buildTextField(
+                      controller: _phoneController,
+                      label: 'Teléfono (opcional)',
+                      icon: Icons.phone,
+                      keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 16),
-                    // Carrera dropdown
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedCareer,
-                      isExpanded: true,
-                      items: careersMap.entries.map((e) {
-                        return DropdownMenuItem(
-                          value: e.key,
-                          child: Text(e.value),
+
+                    // Facultad
+                    _buildDropdown<String>(
+                      value: _selectedFacultyId,
+                      label: 'Facultad',
+                      icon: Icons.domain,
+                      items: _faculties.map((faculty) {
+                        return DropdownMenuItem<String>(
+                          value: faculty['id'] as String,
+                          child: Text(faculty['name'] as String),
                         );
                       }).toList(),
-                      onChanged: _loading ? null : (v) => setState(() => _selectedCareer = v),
-                      decoration: InputDecoration(
-                        labelText: 'Carrera',
-                        labelStyle: const TextStyle(color: Color(0xFF1B5E3F)),
-                        prefixIcon: const Icon(Icons.school, color: Color(0xFF1B5E3F), size: 20),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD0E8E0))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD0E8E0))),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1B5E3F), width: 2)),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      validator: (v) => v == null ? 'Selecciona una carrera' : null,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedFacultyId = value;
+                          _careers = [];
+                          _selectedCareerId = null;
+                        });
+                        if (value != null) {
+                          _loadCareers(value);
+                        }
+                      },
                     ),
-                    const SizedBox(height: 28),
-                    // Botón crear cuenta
+                    const SizedBox(height: 16),
+
+                    // Carrera
+                    _buildDropdown<String>(
+                      value: _selectedCareerId,
+                      label: 'Carrera',
+                      icon: Icons.school_outlined,
+                      items: _careers.map((career) {
+                        return DropdownMenuItem<String>(
+                          value: career['id'] as String,
+                          child: Text(career['name'] as String),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCareerId = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Semestre
+                    _buildTextField(
+                      controller: _semesterController,
+                      label: 'Semestre (opcional)',
+                      icon: Icons.calendar_today,
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          final semester = int.tryParse(value);
+                          if (semester == null || semester < 1 || semester > 12) {
+                            return 'Ingresa un semestre válido (1-12)';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Botón de registro
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _loading ? null : _submit,
+                        onPressed: _isLoading ? null : _register,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF1B5E3F),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 2,
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF1B5E3F),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          elevation: 8,
                         ),
-                        child: _loading
+                        child: _isLoading
                             ? const SizedBox(
-                                width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                                width: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Text(
-                                'Crear Cuenta',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                'Registrarse',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                       ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Link a login
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          '¿Ya tienes cuenta? ',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Text(
+                            'Inicia sesión',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -217,26 +365,82 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
+    TextInputType? keyboardType,
+    Widget? suffixIcon,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
-      enabled: !_loading,
       controller: controller,
-      keyboardType: keyboardType,
       obscureText: obscureText,
-      validator: validator,
+      keyboardType: keyboardType,
+      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFF1B5E3F)),
-        prefixIcon: Icon(icon, color: Color(0xFF1B5E3F), size: 20),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD0E8E0))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD0E8E0))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1B5E3F), width: 2)),
+        labelStyle: const TextStyle(color: Colors.white70),
+        prefixIcon: Icon(icon, color: Colors.white70),
+        suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Colors.white.withOpacity(0.1),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white30),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white30),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+        ),
+        errorStyle: const TextStyle(color: Colors.white),
       ),
+      validator: validator,
+    );
+  }
+
+  Widget _buildDropdown<T>({
+    required T? value,
+    required String label,
+    required IconData icon,
+    required List<DropdownMenuItem<T>> items,
+    required void Function(T?) onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        prefixIcon: Icon(icon, color: Colors.white70),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.1),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white30),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white30),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white, width: 2),
+        ),
+      ),
+      dropdownColor: const Color(0xFF1B5E3F),
+      style: const TextStyle(color: Colors.white),
+      items: items,
+      onChanged: onChanged,
+      isExpanded: true,
     );
   }
 }
