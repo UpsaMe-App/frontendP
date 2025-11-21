@@ -159,63 +159,159 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = _authService.currentUser?.id;
+
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Feed'),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B5E3F).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.home_rounded,
+                size: 24,
+                color: Color(0xFF1B5E3F),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Inicio',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _refreshPosts,
+              tooltip: 'Actualizar',
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E3F).withOpacity(0.1),
+              ),
+            ),
+          ],
+        ),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1B5E3F),
         elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            color: Colors.grey[200],
+            height: 1,
+          ),
+        ),
       ),
       body: _isLoading && _posts.isEmpty
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B5E3F)),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Cargando publicaciones...',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            )
           : _posts.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.post_add,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No hay publicaciones aún',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[600],
+              ? RefreshIndicator(
+                  onRefresh: _refreshPosts,
+                  color: const Color(0xFF1B5E3F),
+                  child: Center(
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(32),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.post_add_rounded,
+                                size: 80,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'No hay publicaciones aún',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Sé el primero en compartir algo',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            ElevatedButton.icon(
+                              onPressed: _refreshPosts,
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Actualizar'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1B5E3F),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 4,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Sé el primero en publicar',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _refreshPosts,
+                  color: const Color(0xFF1B5E3F),
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.only(top: 8, bottom: 80),
                     itemCount: _posts.length + (_hasMore ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index >= _posts.length) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: CircularProgressIndicator(),
+                        return Container(
+                          padding: const EdgeInsets.all(24),
+                          alignment: Alignment.center,
+                          child: const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B5E3F)),
                           ),
                         );
                       }
                       
                       final post = _posts[index];
-                      final isMyPost = _authService.currentUser?.id == post.user?.id;
+                      final isMyPost = currentUserId != null && post.user?.id == currentUserId;
                       
                       return PostCard(
                         post: post,

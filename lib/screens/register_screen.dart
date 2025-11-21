@@ -106,9 +106,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1B5E3F), Color(0xFF2D8659)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1B5E3F),
+              Color(0xFF2D8659),
+              Color(0xFF3FA675),
+            ],
           ),
         ),
         child: SafeArea(
@@ -120,236 +124,282 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.school,
-                        size: 60,
-                        color: Color(0xFF1B5E3F),
+                    // Logo con animación
+                    Hero(
+                      tag: 'logo',
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.school,
+                          size: 60,
+                          color: Color(0xFF1B5E3F),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
+                    
+                    // Título
                     const Text(
                       'Crear Cuenta',
                       style: TextStyle(
-                        fontSize: 32,
+                        fontSize: 36,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        letterSpacing: 1,
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Únete a UpsaMe',
+                      'Únete a la comunidad UpsaMe',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white70,
+                        fontWeight: FontWeight.w300,
                       ),
                     ),
                     const SizedBox(height: 40),
 
-                    // Nombre
-                    _buildTextField(
-                      controller: _firstNameController,
-                      label: 'Nombre',
-                      icon: Icons.person,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'El nombre es requerido';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Apellido
-                    _buildTextField(
-                      controller: _lastNameController,
-                      label: 'Apellido',
-                      icon: Icons.person_outline,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'El apellido es requerido';
-                        }
-                        return null;
-                      },
-                    );
-                    const SizedBox(height: 16),
-
-                    // Email
-                    _buildTextField(
-                      controller: _emailController,
-                      label: 'Email',
-                      icon: Icons.email,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'El email es requerido';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Ingresa un email válido';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Contraseña
-                    _buildTextField(
-                      controller: _passwordController,
-                      label: 'Contraseña',
-                      icon: Icons.lock,
-                      obscureText: _obscurePassword,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                          color: Colors.white70,
+                    // Card contenedor del formulario
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1.5,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'La contraseña es requerida';
-                        }
-                        if (value.length < 6) {
-                          return 'La contraseña debe tener al menos 6 caracteres';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
+                      child: Column(
+                        children: [
+                          _buildTextField(
+                            controller: _firstNameController,
+                            label: 'Nombre',
+                            icon: Icons.person,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El nombre es requerido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
 
-                    // Teléfono
-                    _buildTextField(
-                      controller: _phoneController,
-                      label: 'Teléfono (opcional)',
-                      icon: Icons.phone,
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _lastNameController,
+                            label: 'Apellido',
+                            icon: Icons.person_outline,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El apellido es requerido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
 
-                    // Facultad
-                    _buildDropdown<String>(
-                      value: _selectedFacultyId,
-                      label: 'Facultad',
-                      icon: Icons.domain,
-                      items: _faculties.map((faculty) {
-                        return DropdownMenuItem<String>(
-                          value: faculty['id'] as String,
-                          child: Text(faculty['name'] as String),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedFacultyId = value;
-                          _careers = [];
-                          _selectedCareerId = null;
-                        });
-                        if (value != null) {
-                          _loadCareers(value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _emailController,
+                            label: 'Email',
+                            icon: Icons.email,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El email es requerido';
+                              }
+                              if (!value.contains('@')) {
+                                return 'Ingresa un email válido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
 
-                    // Carrera
-                    _buildDropdown<String>(
-                      value: _selectedCareerId,
-                      label: 'Carrera',
-                      icon: Icons.school_outlined,
-                      items: _careers.map((career) {
-                        return DropdownMenuItem<String>(
-                          value: career['id'] as String,
-                          child: Text(career['name'] as String),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCareerId = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _passwordController,
+                            label: 'Contraseña',
+                            icon: Icons.lock,
+                            obscureText: _obscurePassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.white70,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'La contraseña es requerida';
+                              }
+                              if (value.length < 6) {
+                                return 'Mínimo 6 caracteres';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
 
-                    // Semestre
-                    _buildTextField(
-                      controller: _semesterController,
-                      label: 'Semestre (opcional)',
-                      icon: Icons.calendar_today,
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value != null && value.isNotEmpty) {
-                          final semester = int.tryParse(value);
-                          if (semester == null || semester < 1 || semester > 12) {
-                            return 'Ingresa un semestre válido (1-12)';
-                          }
-                        }
-                        return null;
-                      },
+                          _buildTextField(
+                            controller: _phoneController,
+                            label: 'Teléfono (opcional)',
+                            icon: Icons.phone,
+                            keyboardType: TextInputType.phone,
+                          ),
+                          const SizedBox(height: 16),
+
+                          _buildDropdown<String>(
+                            value: _selectedFacultyId,
+                            label: 'Facultad',
+                            icon: Icons.domain,
+                            items: _faculties.map((faculty) {
+                              return DropdownMenuItem<String>(
+                                value: faculty['id'] as String,
+                                child: Text(faculty['name'] as String),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedFacultyId = value;
+                                _careers = [];
+                                _selectedCareerId = null;
+                              });
+                              if (value != null) {
+                                _loadCareers(value);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          _buildDropdown<String>(
+                            value: _selectedCareerId,
+                            label: 'Carrera',
+                            icon: Icons.school_outlined,
+                            items: _careers.map((career) {
+                              return DropdownMenuItem<String>(
+                                value: career['id'] as String,
+                                child: Text(career['name'] as String),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCareerId = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _semesterController,
+                            label: 'Semestre (opcional)',
+                            icon: Icons.calendar_today,
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null && value.isNotEmpty) {
+                                final semester = int.tryParse(value);
+                                if (semester == null || semester < 1 || semester > 12) {
+                                  return 'Semestre válido: 1-12';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 32),
 
-                    // Botón de registro
+                    // Botón de registro mejorado
                     SizedBox(
                       width: double.infinity,
-                      height: 56,
+                      height: 58,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _register,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: const Color(0xFF1B5E3F),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           elevation: 8,
+                          shadowColor: Colors.black.withOpacity(0.3),
                         ),
                         child: _isLoading
                             ? const SizedBox(
                                 height: 24,
                                 width: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text(
-                                'Registrarse',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B5E3F)),
                                 ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_add, size: 22),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Registrarse',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
                               ),
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Link a login
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          '¿Ya tienes cuenta? ',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text(
-                            'Inicia sesión',
+                    // Link a login mejorado
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            '¿Ya tienes cuenta? ',
                             style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              decoration: TextDecoration.underline,
+                              color: Colors.white70,
+                              fontSize: 15,
                             ),
                           ),
-                        ),
-                      ],
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            child: const Text(
+                              'Inicia sesión',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                decoration: TextDecoration.underline,
+                                decorationColor: Colors.white,
+                                decorationThickness: 2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
