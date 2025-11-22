@@ -75,8 +75,8 @@ class DirectoryUser {
 
   factory DirectoryUser.fromJson(Map<String, dynamic> json) {
     return DirectoryUser(
-      id: json['id'] as String,
-      fullName: json['fullName'] as String,
+      id: json['id'] as String? ?? '',
+      fullName: json['fullName'] as String? ?? json['name'] as String? ?? '',
       email: json['email'] as String?,
       career: json['career'] as String?,
       profilePhotoUrl: json['profilePhotoUrl'] as String?,

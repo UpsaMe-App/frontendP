@@ -3,18 +3,24 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/auth_models.dart';
 import 'api_client.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
   AuthService._private();
   static final AuthService instance = AuthService._private();
-  factory AuthService() => instance;
 
   final _apiClient = ApiClient.instance;
+  final _secureStorage = const FlutterSecureStorage();
+
+  // ✅ Cambiar a getter/setter públicos
   AuthUser? _currentUser;
+  
+  AuthUser? get currentUser => _currentUser;
+  set currentUser(AuthUser? user) => _currentUser = user;
+
   String? _accessToken;
   String? _refreshToken;
 
-  AuthUser? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null && _accessToken != null;
 
   Future<bool> register({

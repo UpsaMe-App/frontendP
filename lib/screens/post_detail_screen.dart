@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import '../models/post_models.dart';
 import '../services/posts_service.dart';
 import '../services/auth_service.dart';
-import '../models/post_models.dart';
-import 'edit_post_screen.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final String postId;
+
   const PostDetailScreen({super.key, required this.postId});
 
   @override
@@ -18,13 +18,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final _replyController = TextEditingController();
   
   Post? _post;
+  List<PostReply> _replies = [];
   bool _isLoading = true;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _loadPost();
+    _loadPostDetail();
   }
 
   @override
@@ -33,184 +34,70 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     super.dispose();
   }
 
-  Future<void> _loadPost() async {
+  Future<void> _loadPostDetail() async {
     setState(() => _isLoading = true);
-
-    // Cargar todos los posts y buscar el específico
+    
+    // Aquí deberías tener un método para obtener el detalle completo
+    // Por ahora, obtenemos todos los posts y filtramos
     final posts = await _postsService.getPosts(pageSize: 100);
-    final post = posts.where((p) => p.id == widget.postId).firstOrNull;
-
+    final post = posts.firstWhere((p) => p.id == widget.postId, orElse: () => posts.first);
+    
     if (mounted) {
       setState(() {
         _post = post;
+        _replies = post.replies ?? [];
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _addReply() async {
-    if (_replyController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Escribe un comentario'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
+  Future<void> _submitReply() async {
+    if (_replyController.text.trim().isEmpty) return;
+    
     setState(() => _isSubmitting = true);
-
-    final reply = await _postsService.addReply(
+    
+    final newReply = await _postsService.addReply(
       widget.postId,
       _replyController.text.trim(),
     );
-
+    
     setState(() => _isSubmitting = false);
-
-    if (reply != null && mounted) {
-      _replyController.clear();
-      FocusScope.of(context).unfocus();
-      
-      // Agregar la respuesta a la lista local
+    
+    if (newReply != null && mounted) {
       setState(() {
-        _post?.replies ??= [];
-        _post?.replies?.add(reply);
+        _replies.insert(0, newReply);
+        _replyController.clear();
       });
-
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Comentario agregado'),
+          content: Text('✅ Respuesta enviada'),
           backgroundColor: Colors.green,
         ),
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Error al agregar comentario'),
+          content: Text('❌ Error al enviar respuesta'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  Future<void> _editPost() async {
-    if (_post == null) return;
-
-    final updatedPost = await Navigator.push<Post>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditPostScreen(post: _post!),
-      ),
-    );
-
-    if (updatedPost != null && mounted) {
-      setState(() {
-        _post = updatedPost;
-      });
-    }
-  }
-
-  Future<void> _deletePost() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar publicación'),
-        content: const Text('¿Estás seguro de que deseas eliminar esta publicación?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final success = await _postsService.deletePost(widget.postId);
-      
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Publicación eliminada'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true); // Retornar true para indicar que se eliminó
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al eliminar la publicación'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  String _getRoleLabel(int role) {
-    switch (role) {
-      case 1: return '🤝 Ofrezco ayuda';
-      case 2: return '🆘 Necesito ayuda';
-      case 3: return '💬 Comentario';
-      default: return '';
-    }
-  }
-
-  Color _getRoleColor(int role) {
-    switch (role) {
-      case 1: return Colors.green;
-      case 2: return Colors.red;
-      case 3: return Colors.blue;
-      default: return Colors.grey;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isMyPost = _authService.currentUser?.id == _post?.user?.id;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detalle de Publicación'),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1B5E3F),
         elevation: 0,
-        actions: [
-          if (isMyPost && _post != null)
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'edit') _editPost();
-                if (value == 'delete') _deletePost();
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                const PopupMenuItem(value: 'delete', child: Text('Borrar')),
-              ],
-            ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _post == null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Publicación no encontrada',
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                )
+              ? const Center(child: Text('Publicación no encontrada'))
               : Column(
                   children: [
                     Expanded(
@@ -219,245 +106,270 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header con usuario
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: Colors.grey[200],
-                                  backgroundImage: _post!.user?.profilePhotoUrl != null
-                                      ? NetworkImage(_post!.user!.profilePhotoUrl!)
-                                      : null,
-                                  child: _post!.user?.profilePhotoUrl == null
-                                      ? Text(
-                                          (_post!.user?.firstName ?? 'U')[0].toUpperCase(),
-                                          style: const TextStyle(fontWeight: FontWeight.bold),
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${_post!.user?.firstName ?? ''} ${_post!.user?.lastName ?? ''}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      Text(
-                                        _post!.createdAtUtc?.split('T').first ?? '',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                            _buildPostHeader(),
                             const SizedBox(height: 16),
-
-                            // Rol badge
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: _getRoleColor(_post!.role).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: _getRoleColor(_post!.role).withOpacity(0.3),
-                                ),
-                              ),
-                              child: Text(
-                                _getRoleLabel(_post!.role),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _getRoleColor(_post!.role),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Materia
-                            if (_post!.subject != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Chip(
-                                  label: Text(_post!.subject!.name),
-                                  backgroundColor: const Color(0xFFF1F8F3),
-                                ),
-                              ),
-
-                            // Título
-                            if (_post!.title != null && _post!.title!.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Text(
-                                  _post!.title!,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-
-                            // Contenido
-                            Text(
-                              _post!.content,
-                              style: const TextStyle(fontSize: 16, height: 1.5),
-                            ),
+                            _buildPostContent(),
                             const SizedBox(height: 24),
-                            const Divider(),
-                            const SizedBox(height: 16),
-
-                            // Sección de respuestas
-                            Text(
-                              'Comentarios (${_post!.replies?.length ?? 0})',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Lista de respuestas
-                            if (_post!.replies != null && _post!.replies!.isNotEmpty)
-                              ..._post!.replies!.map((reply) => _buildReply(reply)),
-
-                            if (_post!.replies?.isEmpty ?? true)
-                              Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Text(
-                                    'No hay comentarios aún',
-                                    style: TextStyle(color: Colors.grey[600]),
-                                  ),
-                                ),
-                              ),
+                            _buildRepliesSection(),
                           ],
                         ),
                       ),
                     ),
-
-                    // Campo para agregar respuesta
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
-                      ),
-                      child: SafeArea(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _replyController,
-                                decoration: InputDecoration(
-                                  hintText: 'Escribe un comentario...',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                maxLines: null,
-                                textInputAction: TextInputAction.send,
-                                onSubmitted: (_) => _addReply(),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _isSubmitting
-                                ? const SizedBox(
-                                    width: 40,
-                                    height: 40,
-                                    child: Center(
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                  )
-                                : IconButton(
-                                    icon: const Icon(Icons.send),
-                                    onPressed: _addReply,
-                                    color: const Color(0xFF1B5E3F),
-                                  ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    _buildReplyInput(),
                   ],
                 ),
     );
   }
 
-  Widget _buildReply(PostReply reply) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget _buildPostHeader() {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 24,
+          backgroundColor: const Color(0xFFEFEFEF),
+          backgroundImage: _post!.user?.profilePhotoUrl != null
+              ? NetworkImage(_post!.user!.profilePhotoUrl!)
+              : null,
+          child: _post!.user?.profilePhotoUrl == null
+              ? Text(
+                  _post!.user?.fullName.isNotEmpty == true 
+                      ? _post!.user!.fullName[0].toUpperCase() 
+                      : 'U',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1B5E3F),
+                  ),
+                )
+              : null,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.grey[300],
-                backgroundImage: reply.user?.profilePhotoUrl != null
-                    ? NetworkImage(reply.user!.profilePhotoUrl!)
-                    : null,
-                child: reply.user?.profilePhotoUrl == null
-                    ? Text(
-                        (reply.user?.firstName ?? 'U')[0].toUpperCase(),
-                        style: const TextStyle(fontSize: 12),
-                      )
-                    : null,
+              Text(
+                _post!.user?.fullName ?? 'Usuario',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${reply.user?.firstName ?? ''} ${reply.user?.lastName ?? ''}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      reply.createdAtUtc?.split('T').first ?? '',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
+              Text(
+                _formatDate(_post!.createdAtUtc),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPostContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_post!.title != null && _post!.title!.isNotEmpty) ...[
           Text(
-            reply.content,
-            style: const TextStyle(fontSize: 14, height: 1.4),
+            _post!.title!,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        
+        Text(
+          _post!.content,
+          style: const TextStyle(fontSize: 16),
+        ),
+        
+        if (_post!.subject != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F8F3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.book, size: 18, color: Color(0xFF1B5E3F)),
+                const SizedBox(width: 8),
+                Text(
+                  _post!.subject!.name,
+                  style: const TextStyle(
+                    color: Color(0xFF1B5E3F),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        
+        if (_post!.role == 1 && _post!.capacity != null) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(Icons.people, size: 18),
+              const SizedBox(width: 8),
+              Text('Cupos: ${_post!.capacity}/${_post!.maxCapacity ?? 0}'),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRepliesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Respuestas (${_replies.length})',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        if (_replies.isEmpty)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('No hay respuestas aún'),
+            ),
+          )
+        else
+          ..._replies.map((reply) => _buildReplyCard(reply)),
+      ],
+    );
+  }
+
+  Widget _buildReplyCard(PostReply reply) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: const Color(0xFFEFEFEF),
+                  backgroundImage: reply.user?.profilePhotoUrl != null
+                      ? NetworkImage(reply.user!.profilePhotoUrl!)
+                      : null,
+                  child: reply.user?.profilePhotoUrl == null
+                      ? Text(
+                          reply.user?.fullName.isNotEmpty == true
+                              ? reply.user!.fullName[0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(fontSize: 12),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        reply.user?.fullName ?? 'Usuario',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        _formatDate(reply.createdAtUtc),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(reply.content),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReplyInput() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _replyController,
+              decoration: InputDecoration(
+                hintText: 'Escribe una respuesta...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              maxLines: null,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: _isSubmitting ? null : _submitReply,
+            icon: _isSubmitting
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send),
+            color: const Color(0xFF1B5E3F),
           ),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 7) {
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year;
+      return '$day/$month/$year';
+    } else if (difference.inDays > 0) {
+      return 'Hace ${difference.inDays} día${difference.inDays > 1 ? 's' : ''}';
+    } else if (difference.inHours > 0) {
+      return 'Hace ${difference.inHours} hora${difference.inHours > 1 ? 's' : ''}';
+    } else if (difference.inMinutes > 0) {
+      return 'Hace ${difference.inMinutes} minuto${difference.inMinutes > 1 ? 's' : ''}';
+    } else {
+      return 'Ahora';
+    }
   }
 }

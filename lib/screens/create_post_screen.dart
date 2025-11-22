@@ -15,6 +15,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final _subjectsService = SubjectsService.instance;
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  final _capacityController = TextEditingController();
+  final _maxCapacityController = TextEditingController();
+  final _calendlyUrlController = TextEditingController();
   
   int _selectedRole = 2; // Por defecto: Student (necesito ayuda)
   String? _selectedSubjectId;
@@ -65,60 +68,102 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
   Future<void> _createPost() async {
+    // Validaciones según el rol
     if (_contentController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El contenido no puede estar vacío')),
-      );
+      _showError('El contenido no puede estar vacío');
       return;
+    }
+
+    // Estudiante y Ayudante requieren materia
+    if ((_selectedRole == 0 || _selectedRole == 1) && _selectedSubjectId == null) {
+      _showError('Debes seleccionar una materia');
+      return;
+    }
+
+    // Ayudante requiere capacidades
+    if (_selectedRole == 0) {
+      if (_capacityController.text.trim().isEmpty || _maxCapacityController.text.trim().isEmpty) {
+        _showError('Debes indicar capacidad actual y máxima');
+        return;
+      }
+      if (_calendlyUrlController.text.trim().isEmpty) {
+        _showError('Debes proporcionar tu link de Calendly');
+        return;
+      }
+      
+      final capacity = int.tryParse(_capacityController.text.trim());
+      final maxCapacity = int.tryParse(_maxCapacityController.text.trim());
+      
+      if (capacity == null || maxCapacity == null) {
+        _showError('Las capacidades deben ser números');
+        return;
+      }
+      if (capacity > maxCapacity) {
+        _showError('La capacidad actual no puede ser mayor a la máxima');
+        return;
+      }
+      if (maxCapacity <= 0) {
+        _showError('La capacidad máxima debe ser mayor a 0');
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
 
-    // Mapeo Frontend → Backend
-    // Frontend: 0=Student(Necesita), 1=Helper(Ofrece), 2=Comment
-    // Backend:  1=Helper,            2=Student,          3=Comment
-    final int backendRole;
-    switch (_selectedRole) {
-      case 0:
-        backendRole = 2; // Student/Necesito ayuda
-        break;
-      case 1:
-        backendRole = 1; // Helper/Ofrezco ayuda
-        break;
-      case 2:
-        backendRole = 3; // Comment
-        break;
-      default:
-        backendRole = 2;
-    }
+    try {
+      Post? createdPost;
 
-    debugPrint('Creating post with role: $backendRole (frontend: $_selectedRole)');
+      // AYUDANTE (Helper = role 1 en backend)
+      if (_selectedRole == 0) {
+        createdPost = await _postsService.createHelperPost(
+          title: _titleController.text.trim().isEmpty ? 'Sin título' : _titleController.text.trim(),
+          content: _contentController.text.trim(),
+          subjectId: _selectedSubjectId!,
+          capacity: int.parse(_capacityController.text.trim()),
+          maxCapacity: int.parse(_maxCapacityController.text.trim()),
+          calendlyUrl: _calendlyUrlController.text.trim(),
+        );
+      }
+      // ESTUDIANTE (Student = role 2 en backend)
+      else if (_selectedRole == 1) {
+        createdPost = await _postsService.createStudentPost(
+          title: _titleController.text.trim().isEmpty ? 'Sin título' : _titleController.text.trim(),
+          content: _contentController.text.trim(),
+          subjectId: _selectedSubjectId!,
+        );
+      }
+      // COMENTARIO (Comment = role 3 en backend)
+      else {
+        createdPost = await _postsService.createCommentPost(
+          title: _titleController.text.trim().isEmpty ? 'Sin título' : _titleController.text.trim(),
+          content: _contentController.text.trim(),
+        );
+      }
 
-    final createdPost = await _postsService.createPost(
-      content: _contentController.text.trim(),
-      title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-      role: backendRole,
-      subjectId: _selectedSubjectId,
-    );
+      setState(() => _isLoading = false);
 
-    setState(() => _isLoading = false);
-
-    if (createdPost != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Publicación creada exitosamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context, createdPost);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error al crear la publicación'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (createdPost != null && mounted) {
+        debugPrint('✅ PUBLICACIÓN CREADA');
+        Navigator.pop(context, createdPost);
+      } else if (mounted) {
+        _showError('Error: El servidor rechazó la publicación');
+      }
+    } catch (e) {
+      debugPrint('❌ EXCEPCIÓN: $e');
+      setState(() => _isLoading = false);
+      if (mounted) {
+        _showError('Error de red: $e');
+      }
     }
   }
 
@@ -334,6 +379,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _capacityController.dispose();
+    _maxCapacityController.dispose();
+    _calendlyUrlController.dispose();
     super.dispose();
   }
 }

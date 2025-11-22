@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/post_models.dart';
 import '../services/posts_service.dart';
-import '../services/subjects_service.dart';
 
 class EditPostScreen extends StatefulWidget {
   final Post post;
@@ -13,14 +12,10 @@ class EditPostScreen extends StatefulWidget {
 }
 
 class _EditPostScreenState extends State<EditPostScreen> {
-  final _postsService = PostsService();
-  final _subjectsService = SubjectsService();
+  final _postsService = PostsService.instance;
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   
-  int _selectedRole = 0;
-  String? _selectedSubjectId;
-  List<Subject> _subjects = [];
   bool _isLoading = false;
 
   @override
@@ -28,22 +23,22 @@ class _EditPostScreenState extends State<EditPostScreen> {
     super.initState();
     _titleController.text = widget.post.title ?? '';
     _contentController.text = widget.post.content;
-    _selectedRole = widget.post.role;
-    _selectedSubjectId = widget.post.subject?.id;
-    _loadSubjects();
   }
 
-  Future<void> _loadSubjects() async {
-    final subjects = await _subjectsService.getSubjects();
-    setState(() {
-      _subjects = subjects;
-    });
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
   }
 
   Future<void> _saveChanges() async {
     if (_contentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El contenido no puede estar vacío')),
+        const SnackBar(
+          content: Text('El contenido no puede estar vacío'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -51,34 +46,28 @@ class _EditPostScreenState extends State<EditPostScreen> {
     setState(() => _isLoading = true);
 
     final updatedPost = await _postsService.updatePost(
-      postId: widget.post.id,
-      content: _contentController.text.trim(),
+      widget.post.id,
       title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-      role: _selectedRole,
-      subjectId: _selectedSubjectId,
+      content: _contentController.text.trim(),
     );
 
     setState(() => _isLoading = false);
 
-    if (updatedPost != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Post actualizado correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, updatedPost);
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al actualizar el post'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (updatedPost != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Post actualizado correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context, updatedPost);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al actualizar el post'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -86,7 +75,10 @@ class _EditPostScreenState extends State<EditPostScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editar Post'),
+        title: const Text('Editar Publicación'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1B5E3F),
+        elevation: 0,
         actions: [
           if (_isLoading)
             const Center(
@@ -103,6 +95,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
             IconButton(
               icon: const Icon(Icons.check),
               onPressed: _saveChanges,
+              tooltip: 'Guardar cambios',
             ),
         ],
       ),
@@ -111,46 +104,59 @@ class _EditPostScreenState extends State<EditPostScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Selector de rol
-            const Text(
-              'Tipo de publicación',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _buildRoleButton(0, '🆘', 'Necesito\nayuda', Colors.red)),
-                const SizedBox(width: 8),
-                Expanded(child: _buildRoleButton(1, '🤝', 'Ofrezco\nayuda', Colors.green)),
-                const SizedBox(width: 8),
-                Expanded(child: _buildRoleButton(2, '💬', 'Comentario', Colors.blue)),
-              ],
+            // Mostrar tipo de post (no editable)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.post.role == 1 ? Icons.volunteer_activism : 
+                    widget.post.role == 2 ? Icons.help_outline : Icons.comment,
+                    color: widget.post.role == 1 ? Colors.green : 
+                           widget.post.role == 2 ? Colors.red : Colors.blue,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.post.role == 1 ? 'Ayudante' : 
+                    widget.post.role == 2 ? 'Estudiante' : 'Comentario',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
 
-            // Selector de materia
-            DropdownButtonFormField<String>(
-              value: _selectedSubjectId,
-              decoration: InputDecoration(
-                labelText: 'Materia',
-                prefixIcon: const Icon(Icons.book),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.grey[50],
+            // Mostrar materia (no editable)
+            if (widget.post.subject != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F8F3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.book, color: Color(0xFF1B5E3F)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.post.subject!.name,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              items: _subjects.map((subject) {
-                return DropdownMenuItem(
-                  value: subject.id,
-                  child: Text(subject.name),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() => _selectedSubjectId = value);
-              },
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
-            // Título
+            // Título (editable)
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
@@ -164,7 +170,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Contenido
+            // Contenido (editable)
             TextField(
               controller: _contentController,
               decoration: InputDecoration(
@@ -177,49 +183,36 @@ class _EditPostScreenState extends State<EditPostScreen> {
               ),
               maxLines: 8,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleButton(int role, String emoji, String label, Color color) {
-    final isSelected = _selectedRole == role;
-    return InkWell(
-      onTap: () => setState(() => _selectedRole = role),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.1) : Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey[300]!,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 24)),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? color : Colors.grey[700],
+            
+            const SizedBox(height: 32),
+            
+            // Nota informativa
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Solo puedes editar el título y contenido. El tipo y materia no se pueden cambiar.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _contentController.dispose();
-    super.dispose();
   }
 }

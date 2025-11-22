@@ -22,7 +22,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   bool _hasMore = true;
   int _currentPage = 1;
-  final int _pageSize = 10;
+  final int _pageSize = 20;
+  int? _selectedRoleFilter; // null = todas, 1 = helper, 2 = student, 3 = comment
 
   @override
   void initState() {
@@ -53,7 +54,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentPage = 1;
     });
 
-    final posts = await _postsService.getPosts(page: 1, pageSize: _pageSize);
+    debugPrint('🏠 Cargando posts${_selectedRoleFilter != null ? " (rol: $_selectedRoleFilter)" : " (todos)"}');
+    
+    final posts = await _postsService.getPosts(
+      page: 1,
+      pageSize: _pageSize,
+      role: _selectedRoleFilter, // null = todas las publicaciones
+    );
     
     if (mounted) {
       setState(() {
@@ -166,33 +173,36 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1B5E3F).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.home_rounded,
-                size: 24,
-                color: Color(0xFF1B5E3F),
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Inicio',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-              ),
-            ),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: _refreshPosts,
-              tooltip: 'Actualizar',
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFF1B5E3F).withOpacity(0.1),
+            InkWell(
+              onTap: _showFilterMenu,
+              child: Row(
+                children: [
+                  const Text(
+                    'UpsaMe',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: _selectedRoleFilter != null 
+                          ? const Color(0xFF1B5E3F).withOpacity(0.2)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      _selectedRoleFilter != null ? Icons.filter_alt : Icons.filter_list,
+                      size: 20,
+                      color: _selectedRoleFilter != null 
+                          ? const Color(0xFF1B5E3F)
+                          : Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -200,13 +210,17 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1B5E3F),
         elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: Colors.grey[200],
-            height: 1,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _refreshPosts,
+            tooltip: 'Actualizar',
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFF1B5E3F).withOpacity(0.1),
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: _isLoading && _posts.isEmpty
           ? Center(
@@ -311,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       }
                       
                       final post = _posts[index];
-                      final isMyPost = currentUserId != null && post.user?.id == currentUserId;
+                      final isMyPost = _authService.currentUser?.id != null && post.user?.id == _authService.currentUser?.id;
                       
                       return PostCard(
                         post: post,
@@ -322,6 +336,92 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                 ),
+    );
+  }
+
+  void _showFilterMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Filtrar publicaciones',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            _buildFilterOption(null, 'Todas las publicaciones', Icons.view_list, Colors.blue),
+            _buildFilterOption(1, 'Ayudantes', Icons.volunteer_activism, Colors.green),
+            _buildFilterOption(2, 'Estudiantes', Icons.school, Colors.red),
+            _buildFilterOption(3, 'Comentarios', Icons.comment, Colors.orange),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterOption(int? role, String label, IconData icon, Color color) {
+    final isSelected = _selectedRoleFilter == role;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: isSelected ? color.withOpacity(0.1) : Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _selectedRoleFilter = role;
+            });
+            Navigator.pop(context);
+            _loadPosts();
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? color : color.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: isSelected ? Colors.white : color, size: 20),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? color : Colors.grey[800],
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  Icon(Icons.check_circle, color: color, size: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

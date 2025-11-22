@@ -32,6 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🔄 RegisterScreen: Iniciando carga de facultades...');
     _loadFaculties();
   }
 
@@ -47,21 +48,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _loadFaculties() async {
+    debugPrint('📡 Cargando facultades desde backend...');
     final faculties = await _directoryService.getFacultiesMap();
+    
+    debugPrint('✅ Facultades recibidas: ${faculties.length}');
+    
     if (mounted) {
       setState(() {
         _faculties = faculties;
       });
+      
+      if (faculties.isEmpty) {
+        debugPrint('⚠️ No se recibieron facultades del backend');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ No se pudieron cargar las facultades. Verifica tu conexión.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        debugPrint('✅ ${faculties.length} facultades disponibles');
+        for (var f in faculties) {
+          debugPrint('   - ${f['name']} (${f['id']})');
+        }
+      }
     }
   }
 
   Future<void> _loadCareers(String facultyId) async {
+    debugPrint('📡 Cargando carreras para facultad: $facultyId');
     final careers = await _directoryService.getCareersMap(facultyId);
+    
+    debugPrint('✅ Carreras recibidas: ${careers.length}');
+    
     if (mounted) {
       setState(() {
         _careers = careers;
         _selectedCareerId = null;
       });
+      
+      if (careers.isEmpty) {
+        debugPrint('⚠️ No se recibieron carreras para esta facultad');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Esta facultad no tiene carreras disponibles'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        debugPrint('✅ ${careers.length} carreras disponibles');
+        for (var c in careers) {
+          debugPrint('   - ${c['name']} (${c['id']})');
+        }
+      }
     }
   }
 
@@ -69,6 +109,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    debugPrint('');
+    debugPrint('╔═══════════════════════════════════════╗');
+    debugPrint('║     📝 REGISTRANDO NUEVO USUARIO      ║');
+    debugPrint('╚═══════════════════════════════════════');
+    debugPrint('📧 Email: ${_emailController.text.trim()}');
+    debugPrint('👤 Nombre: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
+    debugPrint('🎓 CareerId: $_selectedCareerId');
+    debugPrint('📚 Semester: ${_semesterController.text}');
+    debugPrint('═══════════════════════════════════════');
 
     setState(() => _isLoading = true);
 
@@ -86,14 +136,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = false);
 
     if (success && mounted) {
+      debugPrint('✅ REGISTRO EXITOSO - Usuario autenticado');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Cuenta creada exitosamente'),
+          backgroundColor: Color(0xFF1B5E3F),
+        ),
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const MainTabs()),
       );
     } else if (mounted) {
+      debugPrint('❌ REGISTRO FALLÓ');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Error al registrar. Verifica tus datos.'),
+          content: Text('❌ Error al registrar. El email podría estar en uso.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -264,15 +322,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           _buildDropdown<String>(
                             value: _selectedFacultyId,
-                            label: 'Facultad',
+                            label: 'Facultad (opcional)',
                             icon: Icons.domain,
-                            items: _faculties.map((faculty) {
-                              return DropdownMenuItem<String>(
-                                value: faculty['id'] as String,
-                                child: Text(faculty['name'] as String),
-                              );
-                            }).toList(),
+                            items: _faculties.isEmpty
+                                ? [
+                                    const DropdownMenuItem<String>(
+                                      value: null,
+                                      enabled: false,
+                                      child: Text('Cargando facultades...'),
+                                    )
+                                  ]
+                                : _faculties.map((faculty) {
+                                    return DropdownMenuItem<String>(
+                                      value: faculty['id'] as String,
+                                      child: Text(faculty['name'] as String),
+                                    );
+                                  }).toList(),
                             onChanged: (value) {
+                              if (_faculties.isEmpty) return;
                               setState(() {
                                 _selectedFacultyId = value;
                                 _careers = [];
@@ -287,15 +354,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           _buildDropdown<String>(
                             value: _selectedCareerId,
-                            label: 'Carrera',
+                            label: 'Carrera (opcional)',
                             icon: Icons.school_outlined,
-                            items: _careers.map((career) {
-                              return DropdownMenuItem<String>(
-                                value: career['id'] as String,
-                                child: Text(career['name'] as String),
-                              );
-                            }).toList(),
+                            items: _selectedFacultyId == null
+                                ? [
+                                    const DropdownMenuItem<String>(
+                                      value: null,
+                                      enabled: false,
+                                      child: Text('Primero selecciona una facultad'),
+                                    )
+                                  ]
+                                : _careers.isEmpty
+                                    ? [
+                                        const DropdownMenuItem<String>(
+                                          value: null,
+                                          enabled: false,
+                                          child: Text('Cargando carreras...'),
+                                        )
+                                      ]
+                                    : _careers.map((career) {
+                                        return DropdownMenuItem<String>(
+                                          value: career['id'] as String,
+                                          child: Text(career['name'] as String),
+                                        );
+                                      }).toList(),
                             onChanged: (value) {
+                              if (_careers.isEmpty) return;
                               setState(() {
                                 _selectedCareerId = value;
                               });
@@ -308,6 +392,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             label: 'Semestre (opcional)',
                             icon: Icons.calendar_today,
                             keyboardType: TextInputType.number,
+                            isLastField: true, // ← Agregar esto
                             validator: (value) {
                               if (value != null && value.isNotEmpty) {
                                 final semester = int.tryParse(value);
@@ -419,30 +504,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
     TextInputType? keyboardType,
     Widget? suffixIcon,
     String? Function(String?)? validator,
+    bool isLastField = false,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white),
+      textInputAction: isLastField ? TextInputAction.done : TextInputAction.next,
+      onFieldSubmitted: (value) {
+        if (isLastField) {
+          // Auto-registrar al presionar Enter en el último campo
+          _register();
+        }
+      },
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white70),
         prefixIcon: Icon(icon, color: Colors.white70),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white.withOpacity(0.1),
+        fillColor: const Color(0xFF2D8659).withOpacity(0.3), // Verde más claro
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.white30),
+          borderSide: BorderSide(color: const Color(0xFF3FA675).withOpacity(0.5)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.white30),
+          borderSide: BorderSide(color: const Color(0xFF3FA675).withOpacity(0.5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.white, width: 2),
+          borderSide: const BorderSide(color: Color(0xFF3FA675), width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

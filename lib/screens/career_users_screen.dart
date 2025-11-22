@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/directory_service.dart';
 import '../models/directory_models.dart';
+import 'user_profile_screen.dart';
 
 class CareerUsersScreen extends StatefulWidget {
   final Career career;
@@ -25,7 +26,7 @@ class _CareerUsersScreenState extends State<CareerUsersScreen> {
   Future<void> _loadUsers() async {
     setState(() => _isLoading = true);
     
-    final users = await _directoryService.getUsersByCareer(widget.career.id);
+    final users = await _directoryService.getCareerUsers(widget.career.id);
     
     if (mounted) {
       setState(() {
@@ -51,10 +52,10 @@ class _CareerUsersScreenState extends State<CareerUsersScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.people, size: 64, color: Colors.grey[400]),
+                      Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
-                        'No hay estudiantes en esta carrera',
+                        'No hay usuarios en esta carrera',
                         style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
                     ],
@@ -72,6 +73,10 @@ class _CareerUsersScreenState extends State<CareerUsersScreen> {
   }
 
   Widget _buildUserCard(DirectoryUser user) {
+    // Verificar si tiene foto válida
+    final hasValidPhoto = user.profilePhotoUrl != null && 
+                          user.profilePhotoUrl!.isNotEmpty;
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -83,19 +88,21 @@ class _CareerUsersScreenState extends State<CareerUsersScreen> {
         leading: CircleAvatar(
           radius: 28,
           backgroundColor: const Color(0xFFEFEFEF),
-          backgroundImage: user.profilePhotoUrl != null
-              ? NetworkImage(user.profilePhotoUrl!)
+          backgroundImage: hasValidPhoto 
+              ? NetworkImage(user.profilePhotoUrl!) 
               : null,
-          child: user.profilePhotoUrl == null
-              ? Text(
-                  user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
+          child: hasValidPhoto
+              ? null
+              : Text(
+                  user.fullName.isNotEmpty 
+                      ? user.fullName[0].toUpperCase() 
+                      : 'U',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1B5E3F),
                   ),
-                )
-              : null,
+                ),
         ),
         title: Text(
           user.fullName,
@@ -104,21 +111,27 @@ class _CareerUsersScreenState extends State<CareerUsersScreen> {
             fontSize: 16,
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (user.career != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                user.career!,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
+        subtitle: user.career != null
+            ? Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  user.career!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
                 ),
-              ),
-            ],
-          ],
-        ),
+              )
+            : null,
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UserProfileScreen(userId: user.id),
+            ),
+          );
+        },
       ),
     );
   }

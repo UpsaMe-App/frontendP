@@ -14,17 +14,34 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
-  bool _showPassword = false;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
 
   void _submit() async {
     if (_emailCtrl.text.isEmpty || _passwordCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor completa todos los campos'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Por favor completa todos los campos'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
     
     setState(() => _loading = true);
+    
+    debugPrint('');
+    debugPrint('╔═══════════════════════════════════════╗');
+    debugPrint('║      🔐 INICIANDO SESIÓN              ║');
+    debugPrint('╚═══════════════════════════════════════╝');
+    debugPrint('📧 Email: ${_emailCtrl.text.trim()}');
+    debugPrint('═══════════════════════════════════════');
     
     final success = await AuthService.instance.login(
       _emailCtrl.text.trim(),
@@ -34,13 +51,15 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = false);
 
     if (success && mounted) {
+      debugPrint('✅ LOGIN EXITOSO - Redirigiendo a HomePage');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const MainTabs()),
       );
     } else if (mounted) {
+      debugPrint('❌ LOGIN FALLÓ - Credenciales incorrectas');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Credenciales incorrectas. Verifica tu email y contraseña.'),
+          content: Text('❌ Email o contraseña incorrectos'),
           backgroundColor: Colors.red,
         ),
       );
@@ -49,103 +68,188 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
-
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [primary.withOpacity(0.95), primary.withOpacity(0.85), primary.withOpacity(0.75)],
-            stops: const [0.0, 0.5, 1.0],
+            colors: [
+              Color(0xFF1B5E3F),
+              Color(0xFF2D8659),
+              Color(0xFF3FA675),
+            ],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Material(
-                      shape: const CircleBorder(),
-                      elevation: 10,
-                      color: theme.scaffoldBackgroundColor.withOpacity(0.95),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text('🦉', style: TextStyle(fontSize: 64, color: primary)),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo
+                  Hero(
+                    tag: 'logo',
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.school,
+                        size: 60,
+                        color: Color(0xFF1B5E3F),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    Text('UpsaMe', style: theme.textTheme.displaySmall?.copyWith(color: Colors.white)),
-                    const SizedBox(height: 8),
-                    Text('Tu espacio académico. tu comunidad.', style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70), textAlign: TextAlign.center),
-                    const SizedBox(height: 48),
-                    Card(
-                      color: theme.cardColor.withOpacity(0.96),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      elevation: 10,
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('Ingresar', style: theme.textTheme.headlineSmall?.copyWith(color: primary)),
-                            const SizedBox(height: 24),
-                            TextField(
-                              controller: _emailCtrl,
-                              enabled: !_loading,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-                              decoration: InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined, color: primary, size: 20)),
-                            ),
-                            const SizedBox(height: 16),
-                            TextField(
-                              controller: _passwordCtrl,
-                              enabled: !_loading,
-                              obscureText: !_showPassword,
-                              textInputAction: TextInputAction.done,
-                              onSubmitted: (_) {
-                                if (!_loading) _submit();
-                              },
-                              decoration: InputDecoration(
-                                labelText: 'Contraseña',
-                                prefixIcon: Icon(Icons.lock_outline, color: primary, size: 20),
-                                suffixIcon: IconButton(
-                                  icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility, color: primary),
-                                  onPressed: () => setState(() => _showPassword = !_showPassword),
-                                ),
+                  ),
+                  const SizedBox(height: 40),
+
+                  // Email
+                  TextField(
+                    controller: _emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.email, color: Colors.white70),
+                      filled: true,
+                      fillColor: const Color(0xFF2D8659).withOpacity(0.3),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color(0xFF3FA675).withOpacity(0.5)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color(0xFF3FA675).withOpacity(0.5)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF3FA675), width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Password
+                  TextField(
+                    controller: _passwordCtrl,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (value) => _submit(), // ← Enter para login
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.lock, color: Colors.white70),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFF2D8659).withOpacity(0.3),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color(0xFF3FA675).withOpacity(0.5)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: const Color(0xFF3FA675).withOpacity(0.5)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF3FA675), width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Botón Login
+                  SizedBox(
+                    width: double.infinity,
+                    height: 58,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF1B5E3F),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 8,
+                      ),
+                      child: _loading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B5E3F)),
                               ),
-                            ),
-                            const SizedBox(height: 24),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: _loading ? null : _submit,
-                                style: ElevatedButton.styleFrom(backgroundColor: primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 2),
-                                child: _loading ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) : Text('Ingresar', style: theme.textTheme.labelLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
+                            )
+                          : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text('¿No tienes cuenta?', style: TextStyle(color: Colors.grey)),
-                                TextButton(onPressed: _loading ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen())), child: Text('Regístrate', style: TextStyle(color: primary, fontWeight: FontWeight.bold))),
+                                Icon(Icons.login, size: 22),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Iniciar Sesión',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ],
                             ),
-                          ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Link a registro
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        '¿No tienes cuenta? ',
+                        style: TextStyle(color: Colors.white70, fontSize: 15),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                          );
+                        },
+                        child: const Text(
+                          'Regístrate',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            decoration: TextDecoration.underline,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),

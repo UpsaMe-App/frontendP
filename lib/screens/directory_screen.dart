@@ -34,20 +34,11 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
     }
   }
 
-  void _navigateToCareers(Faculty faculty) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CareersScreen(faculty: faculty),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Directorio Académico'),
+        title: const Text('Directorio'),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1B5E3F),
         elevation: 0,
@@ -59,7 +50,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.school, size: 64, color: Colors.grey[400]),
+                      Icon(Icons.school_outlined, size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
                         'No hay facultades disponibles',
@@ -68,8 +59,14 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                     ],
                   ),
                 )
-              : ListView.builder(
+              : GridView.builder(
                   padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.1,
+                  ),
                   itemCount: _faculties.length,
                   itemBuilder: (context, index) {
                     final faculty = _faculties[index];
@@ -81,44 +78,63 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
 
   Widget _buildFacultyCard(Faculty faculty) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: 3,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          padding: const EdgeInsets.all(12),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CareersScreen(faculty: faculty),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF1B5E3F).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.domain,
-            color: Color(0xFF1B5E3F),
-            size: 28,
-          ),
-        ),
-        title: Text(
-          faculty.name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            faculty.slug,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF1B5E3F),
+                const Color(0xFF2D8659),
+              ],
             ),
           ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.school,
+                  size: 40,
+                  color: Color(0xFF1B5E3F),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                faculty.name,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => _navigateToCareers(faculty),
       ),
     );
   }

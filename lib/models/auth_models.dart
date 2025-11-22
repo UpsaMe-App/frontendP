@@ -79,3 +79,58 @@ class AuthUser {
 
   String get fullName => '$firstName $lastName';
 }
+
+class User {
+  final String id;
+  final String email;
+  final String firstName;
+  final String lastName;
+  final String? careerId;
+  final String? career;
+  final int? semester;
+  final String? profilePhotoUrl;
+  final String? phoneNumber;
+
+  User({
+    required this.id,
+    required this.email,
+    required this.firstName,
+    required this.lastName,
+    this.careerId,
+    this.career,
+    this.semester,
+    this.profilePhotoUrl,
+    this.phoneNumber,
+  });
+
+  // ✅ Getter para fullName
+  String get fullName => '$firstName $lastName';
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    // Manejar fullName que viene del backend
+    String firstName = '';
+    String lastName = '';
+    
+    if (json.containsKey('firstName') && json.containsKey('lastName')) {
+      firstName = json['firstName'] as String? ?? '';
+      lastName = json['lastName'] as String? ?? '';
+    } else if (json.containsKey('fullName')) {
+      final fullName = json['fullName'] as String? ?? '';
+      final parts = fullName.split(' ');
+      firstName = parts.isNotEmpty ? parts[0] : '';
+      lastName = parts.length > 1 ? parts.skip(1).join(' ') : '';
+    }
+
+    return User(
+      id: json['id'] as String,
+      email: json['email'] as String,
+      firstName: firstName,
+      lastName: lastName,
+      careerId: json['careerId'] as String?,
+      career: json['career'] as String?,
+      semester: json['semester'] as int?,
+      profilePhotoUrl: json['profilePhotoUrl'] as String?,
+      phoneNumber: json['phoneNumber'] as String? ?? json['phone'] as String?,
+    );
+  }
+}

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/users_service.dart';
+import '../services/api_client.dart';
 import '../constants/careers.dart';
 import 'login_screen.dart';
 import '../models/auth_models.dart';
@@ -16,7 +18,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService.instance;
+  final _usersService = UsersService.instance;
   bool _isEditing = false;
+  bool _isLoading = false;
   
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -24,10 +28,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _semesterController = TextEditingController();
   String? _selectedCareer;
 
+  List<Map<String, String>> _avatarOptions = [];
+  AuthUser? _currentUser;
+
   @override
   void initState() {
     super.initState();
+    _currentUser = _authService.currentUser;
     _loadUserData();
+    _loadAvatarOptions();
   }
 
   @override
@@ -39,14 +48,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _loadAvatarOptions() async {
+    final avatars = await _usersService.getAvatarOptions();
+    if (mounted) {
+      setState(() {
+        _avatarOptions = avatars;
+      });
+    }
+  }
+
   void _loadUserData() {
-    final user = _authService.currentUser;
-    if (user != null) {
-      _firstNameController.text = user.firstName;
-      _lastNameController.text = user.lastName;
-      _phoneController.text = user.phoneNumber ?? '';
-      _semesterController.text = user.semester?.toString() ?? '';
-      _selectedCareer = user.career;
+    if (_currentUser != null) {
+      _firstNameController.text = _currentUser!.firstName;
+      _lastNameController.text = _currentUser!.lastName;
+      _phoneController.text = _currentUser!.phoneNumber ?? '';
+      _semesterController.text = _currentUser!.semester?.toString() ?? '';
+      _selectedCareer = _currentUser!.career;
     }
   }
 
@@ -75,13 +92,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    // TODO: Implementar llamada al backend PUT /users/me
-    // final success = await _userService.updateProfile(...);
+    setState(() => _isLoading = true);
 
-    if (mounted) {
+    final updatedUser = await _usersService.updateMyProfile(
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      semester: _semesterController.text.trim().isEmpty ? null : int.tryParse(_semesterController.text.trim()),
+    );
+
+    setState(() => _isLoading = false);
+
+    if (updatedUser != null && mounted) {
+      _authService.currentUser = updatedUser;
+      setState(() {
+        _currentUser = updatedUser;
+      });
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Perfil actualizado correctamente'),
+          content: Text('✅ Perfil actualizado correctamente'),
           backgroundColor: Colors.green,
         ),
       );
@@ -89,6 +119,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _isEditing = false;
       });
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Error al actualizar el perfil'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -130,9 +167,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (selectedAvatar != null && mounted) {
-      // TODO: Implementar actualización del avatar en el backend
-      // PUT /users/me con avatarId
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Avatar seleccionado: ${selectedAvatar.name}'),
@@ -153,9 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = _authService.currentUser;
-
-    if (user == null) {
+    if (_currentUser == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           Navigator.pushAndRemoveUntil(
@@ -197,53 +229,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Avatar con botón para cambiar
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: const Color(0xFFEFEFEF),
-                  backgroundImage: user.profilePhotoUrl != null
-                      ? NetworkImage(user.profilePhotoUrl!)
-                      : null,
-                  child: user.profilePhotoUrl == null
-                      ? Text(
-                          user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'U',
-                          style: const TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1B5E3F),
-                          ),
-                        )
-                      : null,
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: InkWell(
-                    onTap: _changeAvatar,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1B5E3F),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _buildAvatarSection(),
             const SizedBox(height: 16),
             
             if (!_isEditing) ...[
               Text(
-                '${user.firstName} ${user.lastName}',
+                '${_currentUser!.firstName} ${_currentUser!.lastName}',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -251,20 +242,271 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                user.email,
+                _currentUser!.email,
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[600],
                 ),
               ),
               const SizedBox(height: 24),
-              _buildInfoCard(user),
+              _buildInfoCard(_currentUser!),
             ] else
               _buildEditForm(),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildAvatarSection() {
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: const Color(0xFFEFEFEF),
+          backgroundImage: _currentUser?.profilePhotoUrl != null
+              ? NetworkImage(_currentUser!.profilePhotoUrl!)
+              : null,
+          child: _currentUser?.profilePhotoUrl == null
+              ? Text(
+                  _currentUser?.firstName[0].toUpperCase() ?? 'U',
+                  style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                )
+              : null,
+        ),
+        Positioned(
+          bottom: 0,
+          right: 0,
+          child: InkWell(
+            onTap: _showAvatarOptions,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B5E3F),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.camera_alt,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showAvatarOptions() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Cambiar foto de perfil',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.face, color: Colors.orange),
+              ),
+              title: const Text('Elegir avatar'),
+              subtitle: const Text('Selecciona uno de nuestros avatares'),
+              onTap: () {
+                Navigator.pop(context);
+                _showAvatarPicker();
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAvatarPicker() async {
+    if (_avatarOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Cargando avatares...'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      await _loadAvatarOptions();
+      if (_avatarOptions.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ No se pudieron cargar los avatares'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Elige tu avatar',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 400,
+                width: double.maxFinite,
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.85,
+                  ),
+                  itemCount: _avatarOptions.length,
+                  itemBuilder: (context, index) {
+                    final avatar = _avatarOptions[index];
+                    final avatarUrl = '${ApiClient.instance.baseUrl}${avatar['url']}';
+                    
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _selectAvatar(avatar['id']!);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[300]!),
+                              ),
+                              child: Image.network(
+                                avatarUrl,
+                                fit: BoxFit.contain,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.error, color: Colors.red),
+                                      Text(
+                                        avatar['label']!,
+                                        style: const TextStyle(fontSize: 8),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            avatar['label']!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectAvatar(String avatarId) async {
+    setState(() => _isLoading = true);
+
+    final updatedUser = await _usersService.updateMyProfile(
+      avatarId: avatarId,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (updatedUser != null && mounted) {
+      _authService.currentUser = updatedUser;
+      setState(() {
+        _currentUser = updatedUser;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Avatar actualizado'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Error al actualizar avatar'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildInfoCard(AuthUser user) {
@@ -295,7 +537,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               user.career ?? 'No especificada',
             ),
             const Divider(),
-            // Botón para ver logs de Calendly (solo en debug/admin)
             ListTile(
               leading: const Icon(Icons.webhook, color: Color(0xFF1B5E3F)),
               title: const Text('Calendly Webhooks'),

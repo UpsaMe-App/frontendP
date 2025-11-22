@@ -40,11 +40,14 @@ class ApiClient {
   Future<http.Response> post(String path, Object? body) async {
     final uri = Uri.parse(_buildUrl(path));
     try {
+      debugPrint('📤 POST $uri');
+      debugPrint('   Body: ${jsonEncode(body)}');
       final resp = await http.post(uri, headers: _headers(), body: jsonEncode(body));
+      debugPrint('📥 Response: ${resp.statusCode}');
       _maybeLogNonJson(resp);
       return resp;
     } catch (e) {
-      debugPrint('POST $path error: $e');
+      debugPrint('❌ POST $path error: $e');
       rethrow;
     }
   }
